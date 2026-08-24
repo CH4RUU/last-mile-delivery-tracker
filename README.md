@@ -246,7 +246,9 @@ All endpoints are under `/api`. Authenticated endpoints expect
 Vercel doesn't run a persistent Node server, so the deploy shape differs from
 a typical Express app: [`vercel.json`](vercel.json) builds `web/` as a static
 SPA and deploys the same Express app used locally as a single serverless
-function at `server/api/index.ts` (Vercel rewrites every `/api/*` request to
+function at `api/index.ts` (Vercel only auto-detects functions in a
+top-level `/api` directory, so the entry point can't live under `server/`).
+It rewrites every `/api/*` request to
 it while leaving the original path intact, so Express's own router still
 handles `/api/orders`, `/api/auth/login`, etc. unchanged). One project, one
 URL, no CORS setup needed since frontend and API share an origin.
