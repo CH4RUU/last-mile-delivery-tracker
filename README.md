@@ -24,8 +24,84 @@ of inactivity can take a couple of seconds to cold-start; that's expected.
 | Customer | `customer@tracker.dev` | `password123` |
 | Agent | `agent.north@tracker.dev` (also `.south`, `.east`) | `password123` |
 
+## Screenshots
+
+<table>
+<tr>
+<td width="50%">
+
+**Login — one-click quick-login for each role**
+![Login page](docs/screenshots/01-login.png)
+
+</td>
+<td width="50%">
+
+**Admin dashboard — animated, interactive charts**
+![Admin dashboard](docs/screenshots/02-admin-dashboard.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**All orders — filter by status/zone/agent, assign, override**
+![All orders](docs/screenshots/03-admin-orders.png)
+
+</td>
+<td width="50%">
+
+**Zones & areas — pincode → zone mapping**
+![Zones and areas](docs/screenshots/04-admin-zones.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Rate cards — admin-configurable, intra/inter × B2B/B2C, COD surcharge**
+![Rate cards](docs/screenshots/05-admin-rate-cards.png)
+
+</td>
+<td width="50%">
+
+**Agents — availability the auto-assignment engine reads**
+![Agents](docs/screenshots/06-admin-agents.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**New order — live charge preview before confirming**
+![New order charge preview](docs/screenshots/10-new-order-quote.png)
+
+</td>
+<td width="50%">
+
+**Order tracking — animated stepper + immutable status history**
+![Order tracking](docs/screenshots/11-order-detail-tracking.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Agent view — advance a delivery through its lifecycle**
+![Agent deliveries](docs/screenshots/07-agent-deliveries.png)
+
+</td>
+<td width="50%">
+
+**Customer's order list**
+![Customer orders](docs/screenshots/08-customer-orders.png)
+
+</td>
+</tr>
+</table>
+
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Requirements checklist](#requirements-checklist)
 - [Deliverables](#deliverables)
 - [Quick start](#quick-start)
