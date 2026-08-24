@@ -2,17 +2,34 @@
 
 A delivery management platform where customers and admins create orders with
 auto-calculated charges, agents are assigned intelligently, and customers are
-notified at every step of the delivery journey.
+notified at every step of the delivery journey — built to the "Last-Mile
+Delivery Tracker" assignment brief.
 
 **Stack:** Node.js + TypeScript + Express + Prisma + PostgreSQL (API) ·
 React + TypeScript + Vite (frontend) · JWT auth with role-based access
 (CUSTOMER / AGENT / ADMIN).
 
+## Live demo
+
+**[last-mile-delivery-tracker-five.vercel.app](https://last-mile-delivery-tracker-five.vercel.app)**
+
+The login page has one-click "Admin / Agent / Customer" quick-login buttons
+for the seeded demo accounts below — no need to type credentials. It's a
+Hobby-plan serverless deployment, so the very first request after a period
+of inactivity can take a couple of seconds to cold-start; that's expected.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@tracker.dev` | `password123` |
+| Customer | `customer@tracker.dev` | `password123` |
+| Agent | `agent.north@tracker.dev` (also `.south`, `.east`) | `password123` |
+
 ## Contents
 
+- [Requirements checklist](#requirements-checklist)
+- [Deliverables](#deliverables)
 - [Quick start](#quick-start)
 - [Environment variables](#environment-variables)
-- [Seeded accounts](#seeded-accounts)
 - [Project structure](#project-structure)
 - [Database schema](#database-schema)
 - [Rate calculation engine](#rate-calculation-engine)
@@ -21,8 +38,55 @@ React + TypeScript + Vite (frontend) · JWT auth with role-based access
 - [Order status lifecycle](#order-status-lifecycle)
 - [Notifications](#notifications)
 - [API reference](#api-reference)
-- [Deployment (Render)](#deployment-render)
+- [Deployment (Vercel)](#deployment-vercel)
 - [Feature test walkthrough](#feature-test-walkthrough)
+
+## Requirements checklist
+
+Mapped directly against the assignment's Scope of Work and Technical
+Expectations, so it's easy to verify nothing was skipped.
+
+**Scope of Work**
+
+| Requirement | Where |
+|---|---|
+| Input: pickup/drop address, L×B×H, actual weight, order type, payment type | [`NewOrderPage.tsx`](web/src/pages/NewOrderPage.tsx) form → [`orders.ts`](server/src/routes/orders.ts) `orderInputSchema` |
+| Output: charge, agent assignment, status tracking, notifications | Same order object; see [Order status lifecycle](#order-status-lifecycle) |
+| Admin manages zones, areas, rate cards (intra/inter × B2B/B2C), COD surcharge | [`AdminZonesPage.tsx`](web/src/pages/AdminZonesPage.tsx), [`AdminRateCardsPage.tsx`](web/src/pages/AdminRateCardsPage.tsx) |
+| Customer register/login/order; admin can order on behalf of a customer | [`RegisterPage.tsx`](web/src/pages/RegisterPage.tsx); `NewOrderPage` shows a `customerEmail` field for admins |
+| Zone detection, volumetric weight, higher-of billing, correct rate card, COD surcharge, **charge shown before confirm** | [Rate calculation engine](#rate-calculation-engine) — `POST /orders/quote` powers a live preview before the "Confirm & place order" button |
+| Admin manual assign **or** auto-assign nearest agent | [All Orders](web/src/pages/AdminOrdersPage.tsx) has both an "Auto-assign" button and an "Assign to..." dropdown per order |
+| Agent updates status through Picked Up / In Transit / Out for Delivery / Delivered / Failed | [`AgentDashboardPage.tsx`](web/src/pages/AgentDashboardPage.tsx), server-enforced via `AGENT_TRANSITIONS` |
+| Failed → customer notified → reschedule → agent reassigned | [Order status lifecycle](#order-status-lifecycle) |
+| Customer live status + full tracking timeline | [`OrderDetailPage.tsx`](web/src/pages/OrderDetailPage.tsx) + [`StatusStepper.tsx`](web/src/components/StatusStepper.tsx) |
+| Email notifications on every status change | [Notifications](#notifications) (SMS included too, see below) |
+| Admin views all orders, filters by **status / zone / agent**, overrides any status | `AdminOrdersPage` filter bar + "Override..." dropdown |
+
+**Technical Expectations**
+
+| Requirement | Where |
+|---|---|
+| Backend API, Frontend, Database, role-based auth | Express + Prisma + Postgres API, React SPA, JWT with `CUSTOMER`/`AGENT`/`ADMIN` roles ([`middleware/auth.ts`](server/src/middleware/auth.ts)) |
+| Rate engine: zone detection, volumetric weight, B2B/B2C rate card lookup, COD surcharge, all admin-configurable, no hardcoding | [`rateEngine.ts`](server/src/services/rateEngine.ts) — every price comes from a `RateCard`/`CodSurcharge` row |
+| Auto-assignment: nearest available agent by location or zone | [`assignmentService.ts`](server/src/services/assignmentService.ts) |
+| Order status lifecycle with immutable tracking history (timestamp + actor per change) | `OrderStatusEvent` table — append-only, see [Database schema](#database-schema) |
+| Failed delivery flow: flag, notify, reschedule, reassign | [Order status lifecycle](#order-status-lifecycle) |
+| Email **and** SMS integration (any free tier) | Nodemailer (SMTP) + Twilio REST API, both in [`notificationService.ts`](server/src/services/notificationService.ts) / [`smsService.ts`](server/src/services/smsService.ts) |
+
+## Deliverables
+
+1. **Zip file with complete source code** — sent separately in this
+   conversation (no `node_modules`/`.env`/`dist`; see [Quick start](#quick-start)
+   to run it), and the same code is on GitHub at
+   [github.com/CH4RUU/last-mile-delivery-tracker](https://github.com/CH4RUU/last-mile-delivery-tracker).
+2. **README** with setup guide, `.env.example`, API docs, DB schema, and rate
+   calculation logic — this file.
+3. **Hosted application URL** —
+   [last-mile-delivery-tracker-five.vercel.app](https://last-mile-delivery-tracker-five.vercel.app)
+   (see [Live demo](#live-demo) above).
+4. **System design write-up** (800 words max) —
+   [`SYSTEM_DESIGN.md`](SYSTEM_DESIGN.md), covering the rate engine, zone
+   detection, auto-assignment, and failed-delivery handling.
 
 ## Quick start
 
@@ -47,31 +111,18 @@ npm install
 npm run dev                    # http://localhost:5173 (proxies /api to :4000)
 ```
 
-Open `http://localhost:5173` and sign in with any seeded account (see below).
+Open `http://localhost:5173` and use the quick-login buttons, or sign in with
+any seeded account (password `password123` for all of them).
 
 ## Environment variables
 
 See [`server/.env.example`](server/.env.example) for the full list. The only
 required variable to run locally is `DATABASE_URL`; everything else
-(`SMTP_*`, `TWILIO_*`) is optional — when absent, notifications are still
-recorded in the `Notification` table with status `SKIPPED` instead of being
-silently dropped, so the notification pipeline is fully testable without any
-real credentials.
-
-## Seeded accounts
-
-All seeded users share the password `password123`.
-
-| Role | Email | Notes |
-|---|---|---|
-| Admin | `admin@tracker.dev` | Full access to zones, rate cards, agents, all orders |
-| Customer | `customer@tracker.dev` | Can place orders and track them |
-| Agent | `agent.north@tracker.dev` | Stationed in the "North" zone |
-| Agent | `agent.south@tracker.dev` | Stationed in the "South" zone |
-| Agent | `agent.east@tracker.dev` | Stationed in the "East" zone |
-
-Seeded zones/areas use real Delhi pincodes (110085, 110009, 110017, 110016,
-110092, 110091) so quotes work out of the box — see `server/prisma/seed.ts`.
+(`SMTP_*`, `TWILIO_*`, `DIRECT_URL`) is optional for local dev — when SMTP/
+Twilio credentials are absent, notifications are still recorded in the
+`Notification` table with status `SKIPPED` instead of being silently
+dropped, so the notification pipeline is fully testable without any real
+credentials.
 
 ## Project structure
 
@@ -84,13 +135,16 @@ server/               Express + TypeScript API
                            notificationService, smsService — all the business
                            logic lives here, routes stay thin
   src/middleware/          JWT auth guard, role guard, error handler
+api/index.ts           Vercel serverless entry point (wraps the same Express
+                        app — see Deployment)
 web/                   React + Vite SPA
   src/pages/               One component per screen (customer/agent/admin)
   src/components/          StatusStepper (animated tracking timeline),
                            Layout (role-aware sidebar nav), badges
 docker-compose.yml     Local Postgres for development
-render.yaml            One-click Render blueprint (API + Postgres, single
-                        service serves the built frontend too)
+vercel.json            Vercel deploy config (static frontend + serverless API)
+render.yaml            Alternative: one-click Render blueprint (persistent
+                        Node process + Postgres, no serverless considerations)
 ```
 
 ## Database schema
@@ -163,6 +217,9 @@ unmapped pincode fails the quote with a clear message rather than guessing.
 ## Auto-assignment logic
 
 Implemented in [`server/src/services/assignmentService.ts`](server/src/services/assignmentService.ts).
+**Auto-assignment is the default** — it runs automatically right after an
+order is created, so orders don't sit idle waiting for an admin to click
+anything.
 
 1. Only agents with `availability = AVAILABLE` are eligible.
 2. If the order's pickup has lat/lng **and** at least one available agent has
@@ -171,11 +228,13 @@ Implemented in [`server/src/services/assignmentService.ts`](server/src/services/
    the order's pickup zone, oldest-updated first (a simple round-robin so
    load spreads across a zone's agents).
 4. Otherwise, fall back to any available agent, oldest-updated first.
+5. If no agent is available at all, the order is simply left unassigned —
+   an admin can pick it up later from **All Orders** (either "Auto-assign"
+   again, or hand-pick a specific agent from the "Assign to..." dropdown).
 
 Assignment is transactional: the order is marked `ASSIGNED`, the agent is
 flipped to `BUSY`, and an `OrderStatusEvent` is written, all in one
-`prisma.$transaction`. Admins can trigger this via "Auto-assign" or hand-pick
-an agent from the dropdown in the Orders table.
+`prisma.$transaction`.
 
 ## Order status lifecycle
 
@@ -234,7 +293,7 @@ All endpoints are under `/api`. Authenticated endpoints expect
 | `POST /agents` | admin | Create an agent account |
 | `GET /agents/me` · `PATCH /agents/me` | agent | View/update own availability & location |
 | `POST /orders/quote` | customer, admin | Charge preview, no persistence |
-| `POST /orders` | customer, admin | Create order (admin passes `customerEmail`) |
+| `POST /orders` | customer, admin | Create order (admin passes `customerEmail`); auto-assigns an agent if one is available |
 | `GET /orders` | any | List orders (auto-scoped: own orders for customer/agent, all for admin); filters `status`, `zoneId`, `agentProfileId` |
 | `GET /orders/:id` | any (owner/assignee/admin) | Order detail + full tracking timeline |
 | `POST /orders/:id/assign` | admin | `{ agentProfileId }` manual or `{ auto: true }` |
@@ -248,10 +307,10 @@ a typical Express app: [`vercel.json`](vercel.json) builds `web/` as a static
 SPA and deploys the same Express app used locally as a single serverless
 function at `api/index.ts` (Vercel only auto-detects functions in a
 top-level `/api` directory, so the entry point can't live under `server/`).
-It rewrites every `/api/*` request to
-it while leaving the original path intact, so Express's own router still
-handles `/api/orders`, `/api/auth/login`, etc. unchanged). One project, one
-URL, no CORS setup needed since frontend and API share an origin.
+It rewrites every `/api/*` request to that function while leaving the
+original path intact, so Express's own router still handles `/api/orders`,
+`/api/auth/login`, etc. unchanged. One project, one URL, no CORS setup
+needed since frontend and API share an origin.
 
 Postgres itself isn't hosted by Vercel — use [Neon](https://neon.tech)
 (free, no card, has a native Vercel integration) or any other Postgres
@@ -290,9 +349,10 @@ installs the API's dependencies, runs `prisma generate`, `prisma migrate
 deploy` (against `DIRECT_URL`), and the seed script — so the same seeded
 accounts from local dev work immediately on the hosted URL.
 
-Free-tier note: Hobby-plan serverless functions cold-start on the first
-request after idling (typically under a couple seconds) — expected
-behavior, not a bug.
+Note: use the **Production** deployment URL (the stable
+`<project>.vercel.app` alias) for sharing — per-commit preview URLs are
+gated behind Vercel's own login by default and won't be reachable by anyone
+without access to that Vercel account.
 
 ### Alternative: Render
 
@@ -308,25 +368,25 @@ Postgres isn't pooled the way Neon's is.
 
 ## Feature test walkthrough
 
-A fast way to exercise every requirement in one pass:
+A fast way to exercise every requirement in one pass (works against the
+[live demo](#live-demo) or local dev):
 
-1. Log in as `admin@tracker.dev` → **Zones & Areas**: confirm the seeded
+1. Quick-login as **Admin** → **Zones & Areas**: confirm the seeded
    zones/pincodes, add a new one if you like.
 2. **Rate Cards**: tweak a base charge or COD surcharge, save.
-3. Log in as `customer@tracker.dev` → **New Order**: fill in two different
+3. Quick-login as **Customer** → **New Order**: fill in two different
    pincodes and watch the live charge preview update (zone detection +
-   volumetric weight + your rate-card edit all reflected instantly).
-   Place the order.
-4. Back as admin → **Dashboard**: see the new order in the status chart,
+   volumetric weight + your rate-card edit all reflected instantly). Place
+   the order — it's automatically assigned to the nearest available agent,
+   no admin step needed.
+4. Back as **Admin** → **Dashboard**: see the new order in the status chart,
    click the slice (or the "Active orders" stat card) to jump to a filtered
-   **All Orders** view.
-5. **All Orders** → click "Auto-assign" on the new order — it goes to the
-   nearest/zone-matching available agent.
-6. Log in as that agent (e.g. `agent.north@tracker.dev`) → **My Deliveries**:
-   step the order through Picked up → In transit → Out for delivery →
-   Failed.
-7. Log back in as the customer → open the order → **Reschedule** with a new
-   date. Watch it flip to `RESCHEDULED` and immediately get reassigned to
-   an agent again, all visible in the tracking timeline.
-8. Check the server logs (or the `Notification` table) — a notification was
+   **All Orders** view. If you ever need to reassign, the "Assign to..."
+   dropdown / "Auto-assign" button are there for manual override.
+5. Quick-login as the assigned **Agent** → **My Deliveries**: step the order
+   through Picked up → In transit → Out for delivery → Failed.
+6. Log back in as the **Customer** → open the order → **Reschedule** with a
+   new date. Watch it flip to `RESCHEDULED` and immediately get reassigned
+   to an agent again, all visible in the tracking timeline.
+7. Check the server logs (or the `Notification` table) — a notification was
    logged for every status change above.
