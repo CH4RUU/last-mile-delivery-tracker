@@ -52,7 +52,7 @@ export default function StatusStepper({ order }: { order: Order }) {
                 onClick={() => event && setSelected(selected === i ? null : i)}
               >
                 <motion.div
-                  initial={false}
+                  initial={{ scale: 1, backgroundColor: reached ? "var(--primary)" : "#e2e8f0" }}
                   animate={{
                     scale: isCurrent ? [1, 1.15, 1] : 1,
                     backgroundColor: reached ? "var(--primary)" : "#e2e8f0",
