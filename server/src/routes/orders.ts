@@ -111,7 +111,20 @@ ordersRouter.post(
     });
 
     await notifyOrderStatus(order.id, OrderStatus.CREATED);
-    res.status(201).json({ order });
+
+    // Auto-assignment is the default: every new order immediately tries to
+    // grab the nearest available agent, exactly like the reschedule flow
+    // does for a re-attempt. Admins can still override to a specific agent
+    // (or re-run auto-assign) from the All Orders table if this leaves an
+    // order unassigned (no agents free) or they want a different one.
+    let finalOrder = order;
+    const nearest = await findNearestAvailableAgent({ pickupZoneId: order.pickupZoneId });
+    if (nearest) {
+      finalOrder = await assignAgentToOrder(order.id, nearest.agentProfileId);
+      await notifyOrderStatus(order.id, OrderStatus.ASSIGNED);
+    }
+
+    res.status(201).json({ order: finalOrder });
   })
 );
 
