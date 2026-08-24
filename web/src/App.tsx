@@ -27,10 +27,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/" element={<HomeRedirect />} />
 
       <Route element={<Layout />}>
-        <Route path="/" element={<HomeRedirect />} />
-
         <Route
           path="/orders"
           element={
