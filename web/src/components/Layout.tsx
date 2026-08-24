@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const LINKS: Record<string, { to: string; label: string }[]> = {
@@ -19,7 +19,7 @@ const LINKS: Record<string, { to: string; label: string }[]> = {
 
 export default function Layout() {
   const { user, logout } = useAuth();
-  if (!user) return null;
+  if (!user) return <Navigate to="/login" replace />;
   const links = LINKS[user.role] ?? [];
 
   return (
