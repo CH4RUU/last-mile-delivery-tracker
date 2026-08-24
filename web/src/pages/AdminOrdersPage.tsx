@@ -26,11 +26,13 @@ export default function AdminOrdersPage() {
 
   const status = params.get("status") ?? "";
   const zoneId = params.get("zoneId") ?? "";
+  const agentProfileId = params.get("agentProfileId") ?? "";
 
   async function load() {
     const query: Record<string, string> = {};
     if (status) query.status = status;
     if (zoneId) query.zoneId = zoneId;
+    if (agentProfileId) query.agentProfileId = agentProfileId;
     const [ordersRes, zonesRes, agentsRes] = await Promise.all([
       api.get("/orders", { params: query }),
       api.get("/zones"),
@@ -44,7 +46,7 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     load().catch((err) => setError(apiErrorMessage(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, zoneId]);
+  }, [status, zoneId, agentProfileId]);
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(params);
@@ -120,7 +122,15 @@ export default function AdminOrdersPage() {
             </option>
           ))}
         </select>
-        {(status || zoneId) && (
+        <select value={agentProfileId} onChange={(e) => updateParam("agentProfileId", e.target.value)}>
+          <option value="">All agents</option>
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.user.name}
+            </option>
+          ))}
+        </select>
+        {(status || zoneId || agentProfileId) && (
           <button className="chip" onClick={() => setParams({})}>
             Clear filters ✕
           </button>
